@@ -578,7 +578,7 @@ size_t readdata_sdplr(char* datafilename, size_t* passed_m, size_t* passed_numbl
       else if(type == 'l') {
         nnz[ DATABLOCKIND(num,blk,numblk) ] = -sz*(blksz[blk-1] + 1); // neg num will allow to identify low-rank data matrices later
         for(j = 1; j <= sz*(blksz[blk-1] + 1); j++) {
-          ret = fscanf(datafile, "%zu %zu %lf", &pos1, &pos2, &entry);
+          ret = fscanf(datafile, "%lf", &pos1, &pos2, &entry);
           if(ret < 1) {
             printf("error with fscanf for constraint %d and block %d for entry %d of low rank!\n", i, k, j);
             exit(0);
