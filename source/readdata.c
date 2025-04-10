@@ -583,7 +583,7 @@ size_t readdata_sdplr(char* datafilename, size_t* passed_m, size_t* passed_numbl
             printf("error with fscanf for constraint %d and block %d for entry %d of low rank!\n", i, k, j);
             exit(0);
           }
-          }
+        }
       }
     }
   }
