@@ -2,7 +2,7 @@ SDPLR 1.03-beta paramter file (automatically generated)
 
 --> Basic parameters <--
 
-Input type (1=SDPA, 2=SDPLR) : 1
+Input type (1=SDPA, 2=SDPLR) : 2
 Feasibility tolerance : 1.0e-5
 Centrality tolerance : 1.0e-1
 Penalty factor increase : 2.0
