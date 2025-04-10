@@ -262,6 +262,9 @@ size_t Aoper_formUVt(problemdata* data, double* passedUVt, double* U, double* V,
 
 }
 
+// `y[i] = -(λ[i] - σ * (dot(A[i], RR^T) - b[i]))`
+// `S = C + A^*(y)`
+// `G = 2S * R`
 size_t gradient(problemdata* data, double* R)
 {
   size_t i;
@@ -373,6 +376,7 @@ size_t Stimesmat(problemdata *data, double *S, double *y, double* vec, double* r
   
 }
 
+// S = y[0] * C + A^*(y[1:m])
 size_t AToper(problemdata* data, double* y, double* S, size_t obj)
 {
   size_t      h, i, j, k;
@@ -560,10 +564,10 @@ size_t essential_calcs(problemdata* data, double* R, double normC, double normb,
 {
   *val = function(data, R);
   gradient(data, R);
+  // Should divide by `2` because `G = 2SR`.
   *rho_c_val = EASYDNRM2(data->nr, data->G)/(1.0 + normC);
   // *rho_c_val = EASYDNRM2(data->nr, data->G)/(1.0 + fabs(*val));
   *rho_f_val = EASYDNRM2(data->m, data->vio)/(1.0 + normb);
 
   return 0;
 }
-

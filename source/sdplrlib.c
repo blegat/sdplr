@@ -192,6 +192,7 @@ size_t sdplrlib (size_t m, size_t numblk, size_t *blksz, char *blktype, double *
         iter++; localiter++;
 
         // Direction calculation
+        // D = -G
         copyscaledvectovec (D, -1.0, data->G, data->nr);
         dirlbfgs(data, vecs, D, data->G, oldest, data->numbfgsvecs, 1);
         updatelbfgs1(data, vecs, data->G, oldest);
@@ -203,6 +204,7 @@ size_t sdplrlib (size_t m, size_t numblk, size_t *blksz, char *blktype, double *
         // Linesearch plus variable update
         lastval = val;
         alpha = linesearch (data, R, D, 1.0, &val, 1);
+        // R += alpha * D
         EASYDAXPY (data->nr, alpha, D, R);
 
         // Refresh all the essentials
@@ -212,6 +214,8 @@ size_t sdplrlib (size_t m, size_t numblk, size_t *blksz, char *blktype, double *
         }
         else {
           gradient(data, R);
+          // Different from `||SR||/(||C||+1)`
+          // Here this is `||2SR||/(||C||+1)` since `G = 2SR`.
           rho_c_val = EASYDNRM2(data->nr, data->G)/(1.0 + normC);
           rho_f_val = EASYDNRM2(data->m, data->vio)/(1.0 + normb);
           recalc--;
@@ -261,6 +265,7 @@ size_t sdplrlib (size_t m, size_t numblk, size_t *blksz, char *blktype, double *
       EASYDAXPY (data->m, -data->sigma, data->vio, data->lambda);
 
       tv = EASYDNRM2(data->m,data->lambda);
+      // `SCALE_OBJ` is `0` by default so this is skipped
       if(SCALE_OBJ && normC - 1.0e-10 > DBL_EPSILON && majiter >= 2 && (tv - 10.0 > DBL_EPSILON || DBL_EPSILON < 0.1 - tv)) {
         if(tv - 10.0 > DBL_EPSILON) sc = ( 1.0 - 0.9*pow(10.0/tv,0.1) )*tv;
         else                        sc = ( 9.0*pow(10.0*tv,0.1) + 1.0 )*tv;
@@ -413,6 +418,7 @@ size_t do_scaling(problemdata *data, double value, double *norm)
         data->C[k]->diag->ent[j] /= value;
   }
 
+  // Does this scale all matrices `A` or only diagonal ones ?
   for(j = data->AA_rowptr[0]; j <= data->AA_rowptr[1]-1; j++) {
     data->AA_colval_one[j] /= value;
     data->AA_colval_two[j] /= value;

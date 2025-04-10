@@ -134,7 +134,9 @@ typedef struct {
   // basic structures
   double*      lambda;
   double       sigma;
+  // vio[i] = A_i RR^T - b_i
   double*      vio;
+  // `G = 2S * R` is the gradient (3)
   double*      G;
 
   // timing data structures
@@ -159,6 +161,3 @@ typedef struct {
   size_t       lr_num;
 
 } problemdata;
-
-
-
