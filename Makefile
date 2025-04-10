@@ -15,6 +15,7 @@ cleanall: clean
 	rm -rf sdplr.exe
 	rm -rf mexsdplr.*
 	rm -rf lib/libgsl.a
+	rm -rf lib/libsdplr.so
 
 mingw: mingw_gsl mingw_sdplr
 

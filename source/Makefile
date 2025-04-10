@@ -21,6 +21,7 @@ APPL_SRCS = \
 APPL_OBJS = $(APPL_SRCS:.c=.o)
 
 sdplr: $(APPL_OBJS) 
+	$(CC) $(CFLAGS) -shared -Llib $(LIB_DIRS) $(LIB_DIRS_2) -o ../lib/libsdplr.so $(APPL_OBJS) $(LIBS)
 	$(CC) $(CFLAGS) $(LIB_DIRS) $(LIB_DIRS_2) -o ../sdplr $(APPL_OBJS) $(LIBS)
 
 $(APPL_OBJS): $(OBJECT)%.o : $(SOURCE)%.c

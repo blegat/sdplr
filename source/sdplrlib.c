@@ -36,8 +36,10 @@ size_t sdplrlib (size_t m, size_t numblk, size_t *blksz, char *blktype, double *
               size_t timelim, double rankredtol, size_t printlevel, double *R,
               double *lambda, size_t* maxranks, size_t *ranks, double *pieces)
 {
+  int problem, status;
+  double tempval, eigmin;
   // Paramters that are stored in 'pieces'
-  size_t    majiter, iter, CG, curr_CG, lambdaupdate;
+  size_t    majiter, iter, lambdaupdate;
   double timeoffset;
 
   // Algorithm declarations
@@ -120,6 +122,7 @@ size_t sdplrlib (size_t m, size_t numblk, size_t *blksz, char *blktype, double *
 
 
   // Setup algorithm parameters, quantities
+  status                = 0;
   i = 1; normb          = fabs (data->b[idamax_ (&(data->m), data->b + 1, &i)]);
   normC                 = C_normdatamat (data);
   lambdaupdatect        = LAMBDAUPDATECT;
@@ -143,8 +146,8 @@ size_t sdplrlib (size_t m, size_t numblk, size_t *blksz, char *blktype, double *
   majiter      = (size_t)    pieces[0];
   iter         = (size_t)    pieces[1];
   lambdaupdate = (size_t)    pieces[2];
-  CG           = (size_t)    pieces[3];
-  curr_CG      = (size_t)    pieces[4];
+  status       = (int)       pieces[3];
+  eigmin       = (double)    pieces[4];
   timeoffset   = (double) pieces[5];
   data->sigma  = (double) pieces[6];
   overallsc    = (double) pieces[7];
@@ -192,6 +195,7 @@ size_t sdplrlib (size_t m, size_t numblk, size_t *blksz, char *blktype, double *
         iter++; localiter++;
 
         // Direction calculation
+        // D = -G
         copyscaledvectovec (D, -1.0, data->G, data->nr);
         dirlbfgs(data, vecs, D, data->G, oldest, data->numbfgsvecs, 1);
         updatelbfgs1(data, vecs, data->G, oldest);
@@ -203,6 +207,7 @@ size_t sdplrlib (size_t m, size_t numblk, size_t *blksz, char *blktype, double *
         // Linesearch plus variable update
         lastval = val;
         alpha = linesearch (data, R, D, 1.0, &val, 1);
+        // R += alpha * D
         EASYDAXPY (data->nr, alpha, D, R);
 
         // Refresh all the essentials
@@ -212,6 +217,8 @@ size_t sdplrlib (size_t m, size_t numblk, size_t *blksz, char *blktype, double *
         }
         else {
           gradient(data, R);
+          // Different from `||SR||/(||C||+1)`
+          // Here this is `||2SR||/(||C||+1)` since `G = 2SR`.
           rho_c_val = EASYDNRM2(data->nr, data->G)/(1.0 + normC);
           rho_f_val = EASYDNRM2(data->m, data->vio)/(1.0 + normb);
           recalc--;
@@ -224,7 +231,7 @@ size_t sdplrlib (size_t m, size_t numblk, size_t *blksz, char *blktype, double *
         // If PRINTFREQ seconds have passed since last major iteration, print an update
         timeprintfreq += current_time(timeorig) + timeoffset - data->totaltime;
         if(timeprintfreq - PRINTFREQ > DBL_EPSILON) {
-          myprint(-1, iter, overallsc*val, rho_f_val, CG, data->totaltime);
+          myprint(-1, iter, overallsc*val, rho_f_val, 0, data->totaltime);
           timeprintfreq -= PRINTFREQ;
         }
 
@@ -239,7 +246,13 @@ size_t sdplrlib (size_t m, size_t numblk, size_t *blksz, char *blktype, double *
 //         printf("data->totaltime = %f   %f\n", data->totaltime, (double)current_time(timeorig) + (double)timeoffset);
 
         // Possibly terminate
-        if (data->totaltime >= data->timelim || rho_f_val <= data->rho_f || iter >= 10000000 || CG >= 10000000) {
+        if (rho_f_val <= data->rho_f)
+          status = 1;
+        if (data->totaltime >= data->timelim)
+          status = 2;
+        if (iter >= 10000000)
+          status = 3;
+        if (status != 0) {
             EASYDAXPY (data->m, -data->sigma, data->vio, data->lambda);
             essential_calcs (data, R, normC, normb, &val, &rho_c_val, &rho_f_val);
             goto END_CURR_MAJOR_ITERATION;
@@ -261,6 +274,7 @@ size_t sdplrlib (size_t m, size_t numblk, size_t *blksz, char *blktype, double *
       EASYDAXPY (data->m, -data->sigma, data->vio, data->lambda);
 
       tv = EASYDNRM2(data->m,data->lambda);
+      // `SCALE_OBJ` is `0` by default so this is skipped
       if(SCALE_OBJ && normC - 1.0e-10 > DBL_EPSILON && majiter >= 2 && (tv - 10.0 > DBL_EPSILON || DBL_EPSILON < 0.1 - tv)) {
         if(tv - 10.0 > DBL_EPSILON) sc = ( 1.0 - 0.9*pow(10.0/tv,0.1) )*tv;
         else                        sc = ( 9.0*pow(10.0*tv,0.1) + 1.0 )*tv;
@@ -286,6 +300,7 @@ size_t sdplrlib (size_t m, size_t numblk, size_t *blksz, char *blktype, double *
     // Check found grossly unbound value (indicative of infeasibility)
     if(overallsc*val - 1.0e10*fabs(origval) > DBL_EPSILON) {
       printf("Cannot reduce infeasibility any further.\n");
+      status = 4;
       goto END_MAJOR_ITERATIONS;
     }
 
@@ -293,17 +308,24 @@ size_t sdplrlib (size_t m, size_t numblk, size_t *blksz, char *blktype, double *
 
     if(data->printlevel > 0) {
       if (data->checkbd == 1) {
-        sprintf (line, "%3zu %6zu % .7e %.1e % .7e %5zu    [ %5zu  %5zu ]\n", majiter, iter, val, rho_f_val, bestbd, (size_t) data->totaltime, curr_CG, CG);
+        sprintf (line, "%3zu %6zu % .7e %.1e % .7e %5zu    [ %5zu  %5zu ]\n", majiter, iter, val, rho_f_val, bestbd, (size_t) data->totaltime, 0, 0);
         printf ("%s",line); fflush (stdout);
       }
-      if (data->checkbd == 0 || data->checkbd == -1) myprint(majiter, iter, overallsc*val, rho_f_val, CG, data->totaltime);
+      if (data->checkbd == 0 || data->checkbd == -1) myprint(majiter, iter, overallsc*val, rho_f_val, 0, data->totaltime);
     }
 
 #ifdef __MEX
     mexEvalString("drawnow;");
 #endif
 
-    if (data->totaltime >= data->timelim || rho_f_val <= data->rho_f || iter >= 10000000 || CG >= 10000000)
+    if (rho_f_val <= data->rho_f)
+      status = 1;
+    if (data->totaltime >= data->timelim)
+      status = 2;
+    if (iter >= 10000000)
+      status = 3;
+
+    if (status != 0)
       goto END_MAJOR_ITERATIONS;
 
     if (_isnan (val)) { printf ("Error(sdplrlib): Got NaN.\n"); return 0; } // Sam
@@ -350,12 +372,17 @@ END_MAJOR_ITERATIONS:
     print_dimacs_errors (data, R);
   }
 
+  problem = Smineval(data,&tempval);
+  if(problem == -1)
+    printf("Warning (ARPACK): Eigenvalue calculation failed to converge. Best estimate returned.\n");
+  eigmin = tempval / (1.0 + Cnorm);
+
   // Return info to calling program
   pieces[0] = (double) majiter;
   pieces[1] = (double) iter;
   pieces[2] = (double) lambdaupdate;
-  pieces[3] = (double) CG;
-  pieces[4] = (double) curr_CG;
+  pieces[3] = (double) status;
+  pieces[4] = (double) eigmin;
   pieces[5] = (double) data->totaltime;
   pieces[6] = (double) data->sigma;
   pieces[7] = (double) overallsc;
@@ -413,6 +440,7 @@ size_t do_scaling(problemdata *data, double value, double *norm)
         data->C[k]->diag->ent[j] /= value;
   }
 
+  // Does this scale all matrices `A` or only diagonal ones ?
   for(j = data->AA_rowptr[0]; j <= data->AA_rowptr[1]-1; j++) {
     data->AA_colval_one[j] /= value;
     data->AA_colval_two[j] /= value;

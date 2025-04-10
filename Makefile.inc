@@ -25,6 +25,6 @@ BLAS_LIB= -lblas
 ####################
 
 CC       = gcc
-CFLAGS   = -O3
+CFLAGS   = -g -fPIC
 LIB_DIRS = -L$(LAPACK_LIB_DIR) -L$(BLAS_LIB_DIR)
 LIBS     = -lgsl $(LAPACK_LIB) $(BLAS_LIB) -lgfortran -lm
